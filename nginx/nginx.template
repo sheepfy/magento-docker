@@ -1,0 +1,10 @@
+upstream fastcgi_backend {
+   server fpm:9000;
+}
+
+server {
+   listen ${NGINX_PORT};
+   server_name ${NGINX_HOST};
+   set $MAGE_ROOT /var/www/${PROJECT_NAME};
+   include /etc/nginx/conf-available/nginx.conf;
+}

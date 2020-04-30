@@ -1,0 +1,5 @@
+.idea
+mysql/.mysql
+src/*
+!src/.gitkeep
+.env

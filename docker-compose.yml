@@ -1,0 +1,73 @@
+version: '3.8'
+# https://gist.github.com/chadrien/c90927ec2d160ffea9c4
+services:
+    magento:
+        container_name: ${PROJECT_NAME}_cli
+        hostname: cli.magento.docker
+        build: php/${PHP_VERSION}/cli
+        volumes:
+            - ./src:/var/www/${PROJECT_NAME}
+            - ./auth.json:/root/.composer/auth.json
+        working_dir: /var/www/${PROJECT_NAME}
+        links:
+            - mysql
+    nginx:
+        container_name: ${PROJECT_NAME}_nginx
+        hostname: nginx.magento.docker
+        image: nginx
+        links:
+          - fpm
+        volumes:
+            - ./src:/var/www/${PROJECT_NAME}
+            - ./auth.json:/root/.composer/auth.json
+            - ./php/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+            - ./php/start_fpm.sh:/start_fpm.sh
+            - ./nginx/nginx.template:/etc/nginx/conf.d/nginx.template
+            - ./nginx/magento.conf:/etc/nginx/conf-available/nginx.conf
+        ports:
+            - 80
+        env_file: ./.env
+        environment:
+            VIRTUAL_HOST: ${NGINX_HOST}
+        command: /bin/bash -c "envsubst '\$$NGINX_HOST \$$NGINX_PORT \$$PROJECT_NAME' < /etc/nginx/conf.d/nginx.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+
+    nginx-proxy:
+        container_name: ${PROJECT_NAME}_proxy
+        hostname: proxy.magento.docker
+        image: jwilder/nginx-proxy
+        restart: always
+        ports:
+            - 80:80
+        volumes:
+            - /var/run/docker.sock:/tmp/docker.sock:ro
+        environment:
+            DEFAULT_HOST: ${NGINX_HOST}
+
+    fpm:
+        container_name: ${PROJECT_NAME}_fpm
+        hostname: fpm.magento.docker
+        build: php/${PHP_VERSION}/fpm
+        entrypoint: /start_fpm.sh
+        ports:
+            - 9000
+        volumes:
+            - ./src:/var/www/${PROJECT_NAME}
+            - ./auth.json:/root/.composer/auth.json
+            - ./php/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+            - ./php/start_fpm.sh:/start_fpm.sh
+        links:
+            - mysql
+        environment:
+            - XDEBUG_CONFIG=remote_host=${LOCAL_IP}
+
+    mysql:
+        container_name: ${PROJECT_NAME}_mysql
+        hostname: mysql.magento.docker
+        image: mysql:5.7.30
+        command: mysqld --user=root --verbose
+        volumes:
+            - ./mysql/.mysql:/var/lib/mysql
+            - ./mysql/mysql.cnf:/etc/mysql/my.cnf
+        ports:
+            - 3306:3306
+        env_file: ./.env
